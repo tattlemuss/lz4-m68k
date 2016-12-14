@@ -7,6 +7,7 @@ lz4_depack:
 	moveq	#15,d4			; d4 = "15"
 	moveq.l	#0,d0			; d0 = initial token fetch, high bits used to generate lengths
 	moveq.l	#0,d2
+	moveq.l	#0,d3			; Ensure clear high word (found by @zerkman)
 .lz4_depack_loop:
 	move.b	(a0)+,d0		; d0 = token, 0 in high bits
 	move.l	d0,d1
