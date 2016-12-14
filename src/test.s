@@ -1,6 +1,8 @@
 ; Simple test code for m68k assembler version of lz4 decompressor.
 	opt		d+,s+
 
+POISON_VALUE	equ	$55555555
+
 start:
 	pea	string(pc)
 	move.w	#9,-(a7)
@@ -10,6 +12,20 @@ start:
 	lea	compressed,a0
 	lea	compressed_end,a1
 	lea	output,a2
+	
+	; Poison registers
+	move.l	#POISON_VALUE,d0
+	move.l	d0,d1
+	move.l	d0,d2
+	move.l	d0,d3
+	move.l	d0,d4
+	move.l	d0,d5
+	move.l	d0,d6
+	move.l	d0,d7
+	move.l	d0,a3
+	move.l	d0,a4
+	move.l	d0,a5
+	move.l	d0,a6	
 	bsr	lz4_depack
 
 	pea	string2(pc)
