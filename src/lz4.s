@@ -1,9 +1,58 @@
-; depack lz4 buffer
-; Based on the description at http://lz4.github.io/lz4/lz4_Block_format.html
-; input a0 - start of compressed data
-; input a1 - end of compressed data
+; depack a single lz4 "frame" containing 1 or more lz4 blocks.
+; input a0 - start of compressed frame
 ; input a2 - start of output buffer
-lz4_depack:
+lz4_depack_frame:
+	addq.l	#4,a0			;skip the frame header
+	move.b	(a0)+,d0		;d0 = FLG byte
+	addq.l	#1,a0			;skip BD byte, we don't care
+	moveq	#0,d1			;d1 = size of data checksum
+
+	btst.b	#4,d0			;block checksum set?
+	beq.s	.no_content_checksum
+	moveq	#4,d1			;d1 = add 4 bytes after each data block
+.no_content_checksum:
+
+	btst.b	#3,d0			;content size flag set?
+	beq.s	.no_content_size
+	addq.l	#8,a0			;add 8 bytes
+.no_content_size:
+
+	btst.b	#0,d0			;dictionary ID flag set?
+	beq.s	.no_dict_id
+	addq.l	#1,a0			;add 1 byte
+.no_dict_id:
+
+	addq.l	#1,a0			;skip HC header checksum byte
+	move.w	d1,-(a7)		;save number of bytes to skip after block (0 or 4 bytes)
+	; Now unpack the Data Blocks in turn
+.block_depack_loop:
+	; Get the size in little-endian format
+	move.l	a7,a1
+	subq.l	#4,a7
+	move.b	(a0)+,-(a1)		;we can't use -(a7) here, that jumps 2 bytes
+	move.b	(a0)+,-(a1)
+	move.b	(a0)+,-(a1)
+	move.b	(a0)+,-(a1)
+	move.l	(a7)+,d0		;d0 = size
+	tst.l	d0
+	beq.s	.blocks_done
+
+	lea	(a0,d0.l),a1
+	bsr	lz4_depack_block
+
+	; TODO handle block checksum
+	add.w	(a7),a0			;skip block checksum when applicable
+	bra.s	.block_depack_loop
+.blocks_done:
+	addq.l	#2,a7			;remove saved block checksum add value
+	rts
+
+; depack a single lz4 block.
+; Based on the description at http://lz4.github.io/lz4/lz4_Block_format.html
+; input a0 - start of compressed block
+; input a1 - end of compressed block
+; input a2 - start of output buffer
+lz4_depack_block:
 	moveq	#15,d4			; d4 = "15"
 	moveq.l	#0,d0			; d0 = initial token fetch, high bits used to generate lengths
 	moveq.l	#0,d2
@@ -51,4 +100,3 @@ lz4_depack:
 .length_done:
 .all_done:
 	rts
-lz4_depack_size		equ	*-lz4_depack
