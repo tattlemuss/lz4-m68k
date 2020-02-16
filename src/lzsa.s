@@ -36,29 +36,23 @@ lzsa1_depack_frame:
 	bne.s	.copy_literals
 
 ;	============ EXTRA LITERAL LENGTH ==============
-	move.b	(a0)+,d1	; (we know the original is 7)
+	add.b	(a0)+,d1	; (we know the original is 7)
+	bcc.s	.copy_literals	; 0-248, no carry is set, result 0-255
+	beq.s	.copy249
 
-	cmp.b	#250,d1		; 2 bytes
-	bne.s	.not250
-
+	; carry and not-equal means > 250
 	; 250: a second byte follows. The final literals value is 256 + the second byte.
 	move.b	(a0)+,d1	; higher byte is 0 from d0
 	add.w	#256,d1
 	bra.s	.copy_literals
-.not250:
-	cmp.b	#249,d1		; 2 bytes
-	bne.s	.not249
-
+.copy249:
 	; 249: a second and third byte follow, forming a little-endian 16-bit value.
+	; (note: value is unsigned!)
 	; Use 2 bytes as the offset, low-byte first
 	move.b	(a0)+,d1
 	lsl.w	#8,d1
 	move.b	(a0)+,d1
 	ror.w	#8,d1		; compensate for little-endian
-	bra.s	.copy_literals
-
-.not249:
-	addq.l	#7,d1
 
 ;	============ LITERAL VALUES ==============
 .copy_literals:
