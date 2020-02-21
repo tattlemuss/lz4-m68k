@@ -85,9 +85,10 @@ _decode_block_lzsa1:
 
 ;	============ LITERAL VALUES ==============
 .copy_literals:
-	move.b	(a0)+,(a2)+
 	subq.w	#1,d1
-	bne.s	.copy_literals
+.copy_loop:
+	move.b	(a0)+,(a2)+
+	dbf.s	d1,.copy_loop
 .no_literals:
 	cmp.l	a0,a4			; end of block?
 	bne.s	.get_match_offset
@@ -193,9 +194,10 @@ _decode_block_lzsa2:
 
 ;	============ LITERAL VALUES ==============
 .copy_literals:
-	move.b	(a0)+,(a2)+
 	subq.w	#1,d1
-	bne.s	.copy_literals
+.copy_loop:
+	move.b	(a0)+,(a2)+
+	dbf.s	d1,.copy_loop
 
 .no_literals:
 	cmp.l	a0,a4			; end of block?
