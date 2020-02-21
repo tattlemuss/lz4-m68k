@@ -8,23 +8,33 @@ lzsa_depack_stream:
 	bne	.bad_format
 
 	;* V: 3 bit code that indicates which block data encoding is used. 0 is LZSA1 and 2 is LZSA2.
+	move.l	a7,a5
+	subq.l	#4,a7
 	lea	_decode_block_lzsa1(pc),a1	; a1 = block depacker v1
-	move.b	(a0)+,d0		; get encoding type ($40 == lzsa2)
+	move.b	(a0)+,d0			; get encoding type ($40 == lzsa2)
 	cmp.b	#%00100000,d0
 	bne.s	.block_loop
 	lea	_decode_block_lzsa2(pc),a1	; a1 = block depacker v2
 .block_loop:
-	moveq	#0,d0
-	move.b	(a0)+,d0
-	lsl.w	#8,d0
-	move.b	(a0)+,d0
-	move.b	(a0)+,d1		; d1 = block flags
-	ror.w	#8,d0
+
+	;# Frame format
+	;Each frame contains a 3-bytes length followed by block data that expands to up to 64 Kb of decompressed data.
+	;The block data is encoded either as LZSA1 or LZSA2 depending on the V bits of the traits byte in the header.
+	;    0    1    2
+	; DSZ0 DSZ1 U|DSZ2
+	move.b	(a0)+,-(a5)
+	move.b	(a0)+,-(a5)
+	move.b	(a0)+,-(a5)
+	clr.b	-(a5)
+	move.l	(a5)+,d0
+	; TODO check compression flag
+	and.l	#$ffffff,d0
 	beq.s	.all_done
 	lea	(a0,d0.w),a4		; a4 = end of block
 	jsr	(a1)			; run block depacker
 	bra.s	.block_loop
 .all_done:
+	addq.l	#4,a7
 	moveq	#0,d0			; return success
 	rts
 
