@@ -8,9 +8,9 @@
 ; input a2 - start of output buffer
 lzsa_depack_stream:
 	cmp.b	#$7b,(a0)+
-	bne	.bad_format
+	bne.s	.bad_format
 	cmp.b	#$9e,(a0)+
-	bne	.bad_format
+	bne.s	.bad_format
 
 	move.l	a7,a5
 	subq.l	#4,a7
@@ -30,12 +30,16 @@ lzsa_depack_stream:
 	; DSZ0 DSZ1 U|DSZ2
 	move.b	(a0)+,-(a5)
 	move.b	(a0)+,-(a5)
-	move.b	(a0)+,-(a5)
+	move.b	(a0)+,-(a5)			;could test here for the copy block flag
 	clr.b	-(a5)
 	move.l	(a5)+,d0
-	; TODO check compression flag here. If set, copy raw data.
-	and.l	#$1ffff,d0
-	beq.s	.all_done
+	beq.s	.all_done			;zero size == end of data
+
+	; Check compression flag. If set, copy raw data.
+	btst	#23,d0
+	bne.s	.uncompressed_block
+
+	; Assume the other bits are unset, so no need to mask now.
 	lea	(a0,d0.w),a4			; a4 = end of block
 	jsr	(a1)				; run block depacker
 	bra.s	.block_loop
@@ -44,10 +48,17 @@ lzsa_depack_stream:
 	moveq	#0,d0				; return success
 	rts
 
+.uncompressed_block:
+	and.l	#$1ffff,d0			; mask size
+.copy_block_loop:
+	move.b	(a0)+,(a2)+
+	subq.l	#1,d0
+	bne.s	.copy_block_loop
+	bra.s	.block_loop
+
 .bad_format:
 	moveq	#-1,d0				; return failure
 	rts
-
 ;------------------------------------------------------------------------------
 ; Depack a single forward-compressed LZSA v1 block.
 ; a0 = block data
