@@ -79,10 +79,9 @@ _decode_block_lzsa1:
 	; 249: a second and third byte follow, forming a little-endian 16-bit value.
 	; (note: value is unsigned!)
 	; Use 2 bytes as the offset, low-byte first
-	move.b	(a0)+,d1
-	lsl.w	#8,d1
-	move.b	(a0)+,d1
-	ror.w	#8,d1			; compensate for little-endian
+	move.b	(a0)+,-(a5)
+	move.b	(a0)+,-(a5)
+	move.w	(a5)+,d1
 
 ;	============ LITERAL VALUES ==============
 .copy_literals:
@@ -101,11 +100,9 @@ _decode_block_lzsa1:
 	beq.s	.small_offset
 
 	; Use 2 bytes as the offset, low-byte first
-	; TESTED
-	move.b	(a0)+,d2
-	lsl.w	#8,d2
-	move.b	(a0)+,d2
-	ror.w	#8,d2			; compensate for little-endian
+	move.b	(a0)+,-(a5)
+	move.b	(a0)+,-(a5)
+	move.w	(a5)+,d2
 	bra.s	.match_offset_done
 .small_offset:
 	move.b	(a0)+,d2		; d2 = match offset pt 1
@@ -131,10 +128,9 @@ _decode_block_lzsa1:
 
 .match_length_238:
 	; 238  a second and third byte follow, forming a little-endian 16-bit value. The final encoded match length is that 16-bit value.
-	move.b	(a0)+,d1
-	lsl.w	#8,d1
-	move.b	(a0)+,d1
-	ror.w	#8,d1			; compensate for little-endian
+	move.b	(a0)+,-(a5)
+	move.b	(a0)+,-(a5)
+	move.w	(a5)+,d1
 
 .match_length_done:
 .copy_match:
@@ -191,10 +187,9 @@ _decode_block_lzsa2:
 	bcc.s	.copy_literals
 
 	;* 239: a second and third byte follow, forming a little-endian 16-bit value.
-	move.b	(a0)+,d1		; low part
-	lsl.w	#8,d1
-	move.b	(a0)+,d1		; high part
-	ror.w	#8,d1			; swap
+	move.b	(a0)+,-(a5)
+	move.b	(a0)+,-(a5)
+	move.w	(a5)+,d1
 
 ;	============ LITERAL VALUES ==============
 .copy_literals:
@@ -256,6 +251,7 @@ _decode_block_lzsa2:
 	add.b	d1,d1			; read top bit
 	bcs.s	.matchbits_111
 	;110 16-bit offset: read a byte for offset bits 8-15, then another byte for offset bits 0-7.
+	;CAUTION This is big-endian!
 	move.b	(a0)+,d2		; low part
 	lsl.w	#8,d2
 	move.b	(a0)+,d2		; high part
@@ -292,10 +288,9 @@ _decode_block_lzsa2:
 
 	;* 233: a second and third byte follow, forming a little-endian 16-bit value.
 	;*The final encoded match length is that 16-bit value.
-	move.b	(a0)+,d1		; low part
-	lsl.w	#8,d1
-	move.b	(a0)+,d1		; high part
-	ror.w	#8,d1			; swap ends
+	move.b	(a0)+,-(a5)		; low part
+	move.b	(a0)+,-(a5)		; high part
+	move.w	(a5)+,d1
 
 .match_length_done:
 .copy_match:
