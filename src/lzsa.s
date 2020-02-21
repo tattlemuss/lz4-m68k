@@ -1,21 +1,41 @@
 ; depack a lzsa stream containing 1 or more lzsa-1 blocks.
 ; input a0 - start of compressed frame
 ; input a2 - start of output buffer
-lzsa1_depack_frame:
-	addq.l	#3,a0			; skip stream header
+lzsa_depack_stream:
+	cmp.b	#$7b,(a0)+
+	bne	.bad_format
+	cmp.b	#$9e,(a0)+
+	bne	.bad_format
 
+	;* V: 3 bit code that indicates which block data encoding is used. 0 is LZSA1 and 2 is LZSA2.
+	lea	_decode_block_lzsa1(pc),a1	; a1 = block depacker v1
+	move.b	(a0)+,d0		; get encoding type ($40 == lzsa2)
+	cmp.b	#%00100000,d0
+	bne.s	.block_loop
+	lea	_decode_block_lzsa2(pc),a1	; a1 = block depacker v2
 .block_loop:
 	moveq	#0,d0
 	move.b	(a0)+,d0
 	lsl.w	#8,d0
 	move.b	(a0)+,d0
+	move.b	(a0)+,d1		; d1 = block flags
 	ror.w	#8,d0
-	bne.s	.run_block
-	rts
-.run_block:
-	addq.l	#1,a0			; TODO needs bit 16 / flags (ignore)
+	beq.s	.all_done
 	lea	(a0,d0.w),a4		; a4 = end of block
+	jsr	(a1)			; run block depacker
+	bra.s	.block_loop
+.all_done:
+	moveq	#0,d0			; return success
+	rts
 
+.bad_format:
+	moveq	#-1,d0			; return failure
+	rts
+
+; a0 = block data
+; a2 = output
+; a4 = block end
+_decode_block_lzsa1:
 	moveq	#0,d0			; ensure top bits are clear
 ;	============ TOKEN ==============
 .loop:	
@@ -59,10 +79,10 @@ lzsa1_depack_frame:
 	move.b	(a0)+,(a2)+
 	subq.w	#1,d1
 	bne.s	.copy_literals
-
 .no_literals:
 	cmp.l	a0,a4			; end of block?
-	beq.s	.block_loop
+	bne.s	.get_match_offset
+	rts
 
 ;	============ MATCH OFFSET LOW ==============
 .get_match_offset:
@@ -114,29 +134,14 @@ lzsa1_depack_frame:
 .copy_match_loop:
 	move.b	(a3)+,(a2)+
 	dbf	d1,.copy_match_loop
-	bra	.loop
+	bra.s	.loop
 .all_done:
 	rts
 
-
-; depack a lzsa stream containing 1 or more lzsa-2 blocks.
-; input a0 - start of compressed frame
-; input a2 - start of output buffer
-lzsa2_depack_frame:
-	addq.l	#3,a0			; skip stream header
-
-.block_loop:
-	moveq	#0,d0
-	move.b	(a0)+,d0
-	lsl.w	#8,d0
-	move.b	(a0)+,d0
-	ror.w	#8,d0
-	bne.s	.run_block
-	rts
-.run_block:
-	addq.l	#1,a0			; TODO needs bit 16 / flags (ignore)
-	lea	(a0,d0.w),a4		; a4 = end of block
-
+; a0 = block data
+; a2 = output
+; a4 = block end
+_decode_block_lzsa2:
 	moveq	#-1,d4			; d4 = last match offset
 	moveq	#-1,d3			; d3 = nybble flag (-1 == read again)
 	moveq	#0,d0			; ensure top bits are clear
@@ -189,9 +194,11 @@ lzsa2_depack_frame:
 
 .no_literals:
 	cmp.l	a0,a4			; end of block?
-	beq.s	.block_loop
+	bne.s	.get_match_offset
+	rts
 
 ;	============ MATCH OFFSET ==============
+.get_match_offset:
 ;The match offset is decoded according to the XYZ bits in the token
 ;After all this, d0 is shifted up by 3 bits
 	move.w	d0,d1
@@ -288,8 +295,6 @@ lzsa2_depack_frame:
 	move.b	(a3)+,(a2)+
 	dbf	d1,.copy_match_loop
 	bra	.loop
-.all_done:
-	rts
 
 ; returns next nibble in d2
 ; nybble status in d3; top bit set means "read next byte"
