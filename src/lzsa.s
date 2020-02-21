@@ -261,23 +261,24 @@ lzsa2_depack_frame:
 	bne.s	.match_length_done
 
 	; read nybble and add
-	;* 0-14: the value is added to the 3 stored in the token, to compose the final literals length.
 	bsr	.read_nybble
+	;* 0-14: the value is added to the 7 stored in the token, and then the minmatch of 2 is added, to compose the final match length.
 	add.b	d2,d1
 	cmp.b	#2+7+15,d1
 	bne.s	.match_length_done
-	;* 15: an extra byte follows	
-	;THIS DOCUMENTATION LOOKS WRONG
-	;* 0-237: 18 is added to the value (3 from the token + 15 from the nibble), to compose the 
-	; final literals length. For instance a length of 206 will be stored as 3 in the token + a nibble with the value of 15 + a single byte with the value of 188.
-	;* 239: a second and third byte follow, forming a little-endian 16-bit value. The final 
-	; literals value is that 16-bit value. For instance, a literals length of 1027 is stored 
-	; as 3 in the token, a nibble with the value of 15, then byte values of 239, 3 and 4, as 3 + (4 * 256) = 1027.
+	;* 15: an extra byte follows
+	;If an extra byte follows here, it can have two possible types of value:
+	;* 0-231: 24 is added to the value (7 from the token + 15 from the nibble + minmatch of 2), 
+	;to compose the final match length. For instance a length of 150 will be stored as 7 in the token + a nibble with the value of 15 + a single byte with the value of 126.
 	add.b	(a0)+,d1
 	bcc.s	.match_length_done
 
-	moveq	#2,d0
-	rts
+	;* 233: a second and third byte follow, forming a little-endian 16-bit value.
+	;*The final encoded match length is that 16-bit value.
+	move.b	(a0)+,d1		; low part
+	lsl.w	#8,d1
+	move.b	(a0)+,d1		; high part
+	ror.w	#8,d1			; swap ends
 
 .match_length_done:
 .copy_match:
