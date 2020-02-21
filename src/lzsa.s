@@ -3,9 +3,11 @@
 ; Emphasis is on correctness rather than speed/size.
 
 ;------------------------------------------------------------------------------
-; depack a lzsa stream containing 1 or more lzsa-1 blocks.
+; Depack an lzsa stream containing 1 or more lzsa-1 blocks.
+; No bounds checking is performed.
 ; input a0 - start of compressed frame
 ; input a2 - start of output buffer
+; return d0 - 0 for successful output, -1 for bad format.
 lzsa_depack_stream:
 	cmp.b	#$7b,(a0)+
 	bne.s	.bad_format
