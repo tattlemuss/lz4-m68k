@@ -3,7 +3,7 @@
 ; Emphasis is on correctness rather than speed/size.
 
 ;------------------------------------------------------------------------------
-; Depack an lzsa stream containing 1 or more lzsa-1 blocks.
+; Depack a lzsa stream containing 1 or more lzsa-1 blocks.
 ; No bounds checking is performed.
 ; input a0 - start of compressed frame
 ; input a2 - start of output buffer
@@ -19,9 +19,9 @@ lzsa_depack_stream:
 	;read encoding type
 	;* V: 3 bit code that indicates which block data encoding is used. 0 is LZSA1 and 2 is LZSA2.
 	lea	_decode_block_lzsa1(pc),a1	; a1 = block depacker v1
-	move.b	(a0)+,d0			; get encoding type ($40 == lzsa2)
-	cmp.b	#%00100000,d0
-	bne.s	.block_loop
+	moveq	#%00100000,d0
+	and.b	(a0)+,d0				; get encoding type ($20 == lzsa2)
+	beq.s	.block_loop
 	lea	_decode_block_lzsa2(pc),a1	; a1 = block depacker v2
 .block_loop:
 
@@ -43,7 +43,7 @@ lzsa_depack_stream:
 
 	; Assume the other bits are unset, so no need to mask now.
 	lea	(a0,d0.w),a4			; a4 = end of block
-	jsr	(a1)				; run block depacker
+	jsr	(a1)					; run block depacker
 	bra.s	.block_loop
 .all_done:
 	addq.l	#4,a7
@@ -79,8 +79,8 @@ _decode_block_lzsa1:
 	; * optional extra encoded match length
 	move.b	(a0)+,d0			; d0 = token byte
 
-	move.w	d0,d1
-	and.w	#%01110000,d1			; d1 = literal length * 16, 0x0-0x70
+	moveq	#%01110000,d1
+	and.w	d0,d1				; d1 = literal length * 16, 0x0-0x70
 	beq.s	.no_literals
 	lsr.w	#4,d1				; d1 = literal length, 0x0-0x7
 	cmp.b	#7,d1
@@ -109,7 +109,7 @@ _decode_block_lzsa1:
 	subq.w	#1,d1
 .copy_loop:
 	move.b	(a0)+,(a2)+
-	dbf.s	d1,.copy_loop
+	dbf		d1,.copy_loop
 .no_literals:
 	cmp.l	a0,a4				; end of block?
 	bne.s	.get_match_offset
@@ -132,16 +132,16 @@ _decode_block_lzsa1:
 
 ;	============ MATCH LENGTH EXTRA ==============
 	; Match Length
-	move.w	d0,d1
-	and.w	#%00001111,d1			; d1 = match length
+	moveq	#%00001111,d1
+	and.w	d0,d1				; d1 = match length
 	addq.w	#3,d1				; d1 = match length +3 (3..18)
 	cmp.w	#18,d1
 	bne.s	.match_length_done
 
 	; d1.w = 15 here
 	add.b	(a0)+,d1			; get next size marker
-	bcc.s	.match_length_done		; * 0-237: the value is added to the 15 stored in the token.
-	beq.s	.match_length_238		; * 238: a second and third byte follow
+	bcc.s	.match_length_done	; * 0-237: the value is added to the 15 stored in the token.
+	beq.s	.match_length_238	; * 238: a second and third byte follow
 
 	; 239: a second byte follows. The final match length is 256 + the second byte.
 	move.b	(a0)+,d1
@@ -160,7 +160,7 @@ _decode_block_lzsa1:
 	lea	(a2,d2.l),a3			; a3 = match source (d2.w already negative)
 .copy_match_loop:
 	move.b	(a3)+,(a2)+
-	dbf	d1,.copy_match_loop
+	dbf		d1,.copy_match_loop
 	bra.s	.loop
 .all_done:
 	rts
@@ -171,6 +171,8 @@ _decode_block_lzsa1:
 ; a2 = output
 ; a4 = block end
 _decode_block_lzsa2:
+	move.w	#%11100000,d5
+	moveq	#-1,d6				; .b = $80
 	moveq	#-1,d4				; d4 = last match offset
 	moveq	#-1,d3				; d3 = nybble flag (-1 == read again)
 	moveq	#0,d0				; ensure top bits are clear
@@ -187,9 +189,9 @@ _decode_block_lzsa2:
 	;X Y Z L L M M M
 	move.b	(a0)+,d0			; d0 = token byte
 
-	move.w	d0,d1
 	; Length is built in d1
-	and.w	#%011000,d1			; d1 = literal length * 8
+	moveq	#%011000,d1
+	and.w	d0,d1				; d1 = literal length * 8
 	beq.s	.no_literals
 	lsr.w	#3,d1				; d1 = literal length, 0x0-0x3
 	cmp.b	#3,d1				; special literal length?
@@ -219,7 +221,7 @@ _decode_block_lzsa2:
 	subq.w	#1,d1
 .copy_loop:
 	move.b	(a0)+,(a2)+
-	dbf.s	d1,.copy_loop
+	dbf		d1,.copy_loop
 
 .no_literals:
 	cmp.l	a0,a4				; end of block?
@@ -241,10 +243,10 @@ _decode_block_lzsa2:
 
 	;00Z 5-bit offset: read a nibble for offset bits 1-4 and use the inverted bit Z of the token as bit 0 of the offset. set bits 5-15 of the offset to 1.
 	bsr	.read_nybble			;d2 = nybble
-	eor.b	#$80,d1				;read reverse of "Z" bit into carry
+	eor.b	d6,d1				;read reverse of "Z" bit into carry
 	add.b	d1,d1				;reversed bit put in X flag
 	addx.b	d2,d2				;shift up and combine carry
-	or.b	#%11100000,d2			;ensure top bits are set again
+	or.b	d5,d2				;ensure top bits are set again
 	bra.s	.match_offset_done
 .matchbits_01:
 	;01Z 9-bit offset: read a byte for offset bits 0-7 and use the inverted bit Z for bit 8 of the offset.
@@ -262,10 +264,10 @@ _decode_block_lzsa2:
 	;10Z 13-bit offset: read a nibble for offset bits 9-12 and use the inverted bit Z for bit 8 of the offset, 
 	;then read a byte for offset bits 0-7. set bits 13-15 of the offset to 1.
 	bsr.s	.read_nybble
-	eor.b	#$80,d1				;read reverse of "Z" bit into carry
+	eor.b	d6,d1				;read reverse of "Z" bit into carry
 	add.b	d1,d1				;reversed bit put in X flag
 	addx.b	d2,d2				;shift up and combine carry
-	or.b	#%11100000,d2			;ensure top bits are set again
+	or.b	d5,d2				;ensure top bits are set again
 	lsl.w	#8,d2				;move [0:4] up to [12:8]
 	move.b	(a0)+,d2			;read bits 0-7
 	sub.w	#$200,d2			;undocumented offset -- add 512 byte offset
@@ -291,8 +293,8 @@ _decode_block_lzsa2:
 
 ;	============ MATCH LENGTH EXTRA ==============
 	; Match Length
-	move.w	d0,d1				; clear top bits of length
-	and.w	#%00000111,d1			; d1 = match length 0-7
+	moveq	#%0000111,d1		; clear top bits of length
+	and.w	d0,d1				; d1 = match length 0-7
 	addq.w	#2,d1				; d1 = match length 2-9
 	cmp.w	#2+7,d1
 	bne.s	.match_length_done
@@ -323,21 +325,20 @@ _decode_block_lzsa2:
 	; " the encoded match length is the actual match length offset by the minimum, which is 3 bytes"
 .copy_match_loop:
 	move.b	(a3)+,(a2)+
-	dbf	d1,.copy_match_loop
+	dbf		d1,.copy_match_loop
 	bra	.loop
 
 ; returns next nibble in d2
 ; nybble status in d3; top bit set means "read next byte"
 .read_nybble:
-	tst.b	d3				; anything in the buffer?
-	bmi.s	.next_byte
 	move.b	d3,d2				; copy buffer contents
+	bmi.s	.next_byte			; anything in the buffer?
 	moveq	#-1,d3				; flag buffer is empty
 	rts
 .next_byte:
 	; buffer is empty, so prime next
-	move.b	(a0)+,d3			; fetch
-	move.b	d3,d2
-	lsr.b	#4,d2				; d1 = top 4 bits shifted down (result)
-	and.b	#$f,d3				; d3 = remaining bottom 4 bits, with "empty" flag cleared
+	move.b	(a0)+,d2			; fetch
+	moveq	#$f,d3
+	and.b	d2,d3				; d3 = remaining bottom 4 bits, with "empty" flag cleared
+	lsr.b	#4,d2				; d2 = top 4 bits shifted down (result)
 	rts
