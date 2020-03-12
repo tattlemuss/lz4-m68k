@@ -156,14 +156,17 @@ _decode_block_lzsa1:
 
 .match_length_done:
 .copy_match:
+	lea		(a2,d2.l),a3		; a3 = match source (d2.w already negative)
+	lsr.w	#1,d1
+	bcc.s	.even_match_length
+	move.b	(a3)+,(a2)+
+.even_match_length:
 	subq.w	#1,d1				; -1 for dbf
-	lea	(a2,d2.l),a3			; a3 = match source (d2.w already negative)
 .copy_match_loop:
+	move.b	(a3)+,(a2)+
 	move.b	(a3)+,(a2)+
 	dbf		d1,.copy_match_loop
 	bra.s	.loop
-.all_done:
-	rts
 
 ;------------------------------------------------------------------------------
 ; Depack a single forward-compressed LZSA v2 block.
@@ -321,12 +324,17 @@ _decode_block_lzsa2:
 
 .match_length_done:
 .copy_match:
+	; "the encoded match length is the actual match length offset by the minimum, which is 2 bytes"
+	lsr.w	#1,d1
+	bcc.s	.even_match_length
+	move.b	(a3)+,(a2)+
+.even_match_length:
 	subq.w	#1,d1				; -1 for dbf
-	; " the encoded match length is the actual match length offset by the minimum, which is 3 bytes"
 .copy_match_loop:
 	move.b	(a3)+,(a2)+
+	move.b	(a3)+,(a2)+
 	dbf		d1,.copy_match_loop
-	bra	.loop
+	bra		.loop
 
 ; returns next nibble in d2
 ; nybble status in d3; top bit set means "read next byte"
