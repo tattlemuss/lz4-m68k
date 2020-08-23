@@ -1,6 +1,9 @@
 ; Sample reference depack code for lzsa: https://github.com/emmanuel-marty/lzsa
 ; Currently only supports the standard stream data, using blocks and forwards-decompression.
 ; Emphasis is on correctness rather than speed/size.
+; v1.00 2020-02-21  Initial version
+; v1.01 2020-08-23  Fix for compressed stream block sizes over 32K
+;                   Fix syntax error of "dbf.s"
 
 ;------------------------------------------------------------------------------
 ; Depack an lzsa stream containing 1 or more lzsa-1 blocks.
@@ -42,7 +45,7 @@ lzsa_depack_stream:
 	bne.s	.uncompressed_block
 
 	; Assume the other bits are unset, so no need to mask now.
-	lea	(a0,d0.w),a4			; a4 = end of block
+	lea	(a0,d0.l),a4			; a4 = end of block
 	jsr	(a1)				; run block depacker
 	bra.s	.block_loop
 .all_done:
@@ -109,7 +112,7 @@ _decode_block_lzsa1:
 	subq.w	#1,d1
 .copy_loop:
 	move.b	(a0)+,(a2)+
-	dbf.s	d1,.copy_loop
+	dbf	d1,.copy_loop
 .no_literals:
 	cmp.l	a0,a4				; end of block?
 	bne.s	.get_match_offset
@@ -219,7 +222,7 @@ _decode_block_lzsa2:
 	subq.w	#1,d1
 .copy_loop:
 	move.b	(a0)+,(a2)+
-	dbf.s	d1,.copy_loop
+	dbf	d1,.copy_loop
 
 .no_literals:
 	cmp.l	a0,a4				; end of block?
