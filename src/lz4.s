@@ -7,17 +7,17 @@ lz4_depack_frame:
 	addq.l	#1,a0			;skip BD byte, we don't care
 	moveq	#0,d1			;d1 = size of data checksum
 
-	btst.b	#4,d0			;block checksum set?
+	btst	#4,d0			;block checksum set?
 	beq.s	.no_content_checksum
 	moveq	#4,d1			;d1 = add 4 bytes after each data block
 .no_content_checksum:
 
-	btst.b	#3,d0			;content size flag set?
+	btst	#3,d0			;content size flag set?
 	beq.s	.no_content_size
 	addq.l	#8,a0			;add 8 bytes
 .no_content_size:
 
-	btst.b	#0,d0			;dictionary ID flag set?
+	btst	#0,d0			;dictionary ID flag set?
 	beq.s	.no_dict_id
 	addq.l	#1,a0			;add 1 byte
 .no_dict_id:
